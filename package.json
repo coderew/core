@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/dev.js",
-    "build": "node scripts/build.js",
+    "build": "node scripts/build.js -s",
     "build-dts": "tsc -p tsconfig.build.json && rollup -c rollup.dts.config.js",
     "clean": "rimraf packages/*/dist temp .eslintcache",
     "size": "run-s \"size-*\" && tsx scripts/usage-size.ts",
