@@ -28,9 +28,10 @@ import { installAppCompatProperties } from './compat/global'
 import { NormalizedPropsOptions } from './componentProps'
 import { ObjectEmitsOptions } from './componentEmits'
 import { DefineComponent } from './apiDefineComponent'
-
+// createApp返回值类型
 export interface App<HostElement = any> {
   version: string
+  // 有常用到的globalProperties属性
   config: AppConfig
 
   use<Options extends unknown[]>(
@@ -122,8 +123,11 @@ export interface AppConfig {
 export interface AppContext {
   app: App // for devtools
   config: AppConfig
+  // 缓存mixin的地方
   mixins: ComponentOptions[]
+  // 缓存components的地方
   components: Record<string, Component>
+  // 缓存directives的地方
   directives: Record<string, Directive>
   provides: Record<string | symbol, any>
 
@@ -201,6 +205,7 @@ export function createAppAPI<HostElement>(
   render: RootRenderFunction<HostElement>,
   hydrate?: RootHydrateFunction
 ): CreateAppFunction<HostElement> {
+  // 返回开发者使用的app工厂函数
   return function createApp(rootComponent, rootProps = null) {
     if (!isFunction(rootComponent)) {
       rootComponent = extend({}, rootComponent)
@@ -210,7 +215,7 @@ export function createAppAPI<HostElement>(
       __DEV__ && warn(`root props passed to app.mount() must be an object.`)
       rootProps = null
     }
-
+    // 1.创建上下文
     const context = createAppContext()
 
     // TODO remove in 3.4
@@ -227,11 +232,11 @@ export function createAppAPI<HostElement>(
         }
       })
     }
-
+    // 2.声明一个不可重复的插件容器
     const installedPlugins = new WeakSet()
-
+    // 3.初始化isMounted的状态是false
     let isMounted = false
-
+    // 4.应用程序实例：创建app，并将其添加到context对象的app属性上
     const app: App = (context.app = {
       _uid: uid++,
       _component: rootComponent as ConcreteComponent,
@@ -255,12 +260,17 @@ export function createAppAPI<HostElement>(
       },
 
       use(plugin: Plugin, ...options: any[]) {
+        // 已经 安装过这个插件提示用户
         if (installedPlugins.has(plugin)) {
           __DEV__ && warn(`Plugin has already been applied to target app.`)
         } else if (plugin && isFunction(plugin.install)) {
+          // 所有插件应当具有install方法,参数为app全局对象以及传入的options
+          // 添加到集合中防止重复应用插件
           installedPlugins.add(plugin)
+          // 执行插件的install方法
           plugin.install(app, ...options)
         } else if (isFunction(plugin)) {
+          //如果插件是一个函数,执行
           installedPlugins.add(plugin)
           plugin(app, ...options)
         } else if (__DEV__) {
@@ -316,12 +326,13 @@ export function createAppAPI<HostElement>(
         context.directives[name] = directive
         return app
       },
-
+      // eg. app.mount(‘#app’)，核心渲染逻辑，将vnode转换成真实的DOM
       mount(
         rootContainer: HostElement,
         isHydrate?: boolean,
         isSVG?: boolean
       ): any {
+        // 判断当前返回的app是否已经调用过mount方法
         if (!isMounted) {
           // #5571
           if (__DEV__ && (rootContainer as any).__vue_app__) {
@@ -331,12 +342,15 @@ export function createAppAPI<HostElement>(
                 ` you need to unmount the previous app by calling \`app.unmount()\` first.`
             )
           }
+          // 创建根组件对应的vnode，即虚拟DOM（根据编译后的.vue文件生成对应的虚拟节点）
           const vnode = createVNode(rootComponent, rootProps)
           // store app context on the root VNode.
           // this will be set on the root instance on initial mount.
+          // 将上下文信息挂载到根组件节点的 appContext 属性上
           vnode.appContext = context
 
           // HMR root reload
+          // 开发环境下热更新
           if (__DEV__) {
             context.reload = () => {
               render(cloneVNode(vnode), rootContainer, isSVG)
@@ -344,15 +358,19 @@ export function createAppAPI<HostElement>(
           }
 
           if (isHydrate && hydrate) {
+            // ssr服务端渲染的VNode的逻辑
             hydrate(vnode as VNode<Node, Element>, rootContainer as any)
           } else {
+            // 利用外部传入的渲染器渲染vnode（将vnode挂载到用户传入的container中），即将VNode转换为真实的DOM
             render(vnode, rootContainer, isSVG)
           }
           isMounted = true
+          // 建立app与DOM的关联
           app._container = rootContainer
           // for devtools and telemetry
+          // 根容器上设置一个特殊标记 __vue_app__，用于判断一个 DOM 元素上是否已经挂载了 Vue 应用实例
           ;(rootContainer as any).__vue_app__ = app
-
+          // 如果是开发环境或者开启了生产环境下的开发工具支持，还会将应用实例的 _instance 属性设置为根 VNode 对应的组件实例，然后调用 devtoolsInitApp 函数，将应用实例注册到开发工具中。这样，开发者就可以在开发工具中查看应用的状态和行为，方便调试和排查问题
           if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
             app._instance = vnode.component
             devtoolsInitApp(app, version)

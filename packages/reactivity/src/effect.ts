@@ -16,6 +16,7 @@ import { ComputedRefImpl } from './computed'
 // which maintains a Set of subscribers, but we simply store them as
 // raw Sets to reduce memory overhead.
 type KeyToDepMap = Map<any, Dep>
+// 存储副作用函数
 const targetMap = new WeakMap<object, KeyToDepMap>()
 
 // The number of effects currently being tracked recursively.
@@ -44,12 +45,19 @@ export type DebuggerEventExtraInfo = {
   oldValue?: any
   oldTarget?: Map<any, any> | Set<any>
 }
-
+// 用一个全局变量存储当前激活的effect函数
 export let activeEffect: ReactiveEffect | undefined
 
 export const ITERATE_KEY = Symbol(__DEV__ ? 'iterate' : '')
 export const MAP_KEY_ITERATE_KEY = Symbol(__DEV__ ? 'Map key iterate' : '')
-
+/**
+ * 1、接收fn和scheduler参数，当ReactiveEffect被创建的时候，会立即执行fn
+ * 2、当fn函数中使用到响应式变量（如ref）时，该响应式变量就会用数组收集ReactiveEffect对象的引用ßß
+ * 3、当响应式变了改变的时候，会触发所有ReactiveEffect对象，规则如下：
+ *  3.1 如果没有scheduler参数，则执行ReactiveEffect的fn;
+ *  3.2 如果有scheduler参数中，则执行scheduler，这时需要在scheduler中手动调用fn;
+ * 4、执行fn时，使用到响应式变量，依赖又会被重新收集
+ */
 export class ReactiveEffect<T = any> {
   active = true
   deps: Dep[] = []
@@ -96,25 +104,31 @@ export class ReactiveEffect<T = any> {
       parent = parent.parent
     }
     try {
+      // 创建一个新的副作用前将当前正在执行的副作用存储到新建的副作用的 parent 属性上，解决嵌套effect 的情况
       this.parent = activeEffect
+      // 将创建的副作用设置为当前正则正在执行的副作用
       activeEffect = this
+      // 将 shouldTrack 设置为 true，表示开启依赖收集
       shouldTrack = true
 
       trackOpBit = 1 << ++effectTrackDepth
 
       if (effectTrackDepth <= maxMarkerBits) {
+        // 初始化依赖
         initDepMarkers(this)
       } else {
+        // 清除依赖
         cleanupEffect(this)
       }
+      // 返回原始副作用函数执行后的结果
       return this.fn()
     } finally {
       if (effectTrackDepth <= maxMarkerBits) {
         finalizeDepMarkers(this)
       }
-
+      // 使用 effectTrackDepth 变量记录当前的依赖追踪深度。然后使用位运算符 << 将数字 1 左移 effectTrackDepth 位，生成一个新的依赖追踪标识符。这个标识符是一个二进制数，其中每个二进制位表示一个响应式数据的依赖关系
       trackOpBit = 1 << --effectTrackDepth
-
+      // 重置当前正在执行的副作用
       activeEffect = this.parent
       shouldTrack = lastShouldTrack
       this.parent = undefined
@@ -124,7 +138,7 @@ export class ReactiveEffect<T = any> {
       }
     }
   }
-
+  // 停止(清除) effect
   stop() {
     // stopped while running itself - defer the cleanup
     if (activeEffect === this) {
@@ -184,17 +198,21 @@ export function effect<T = any>(
   if ((fn as ReactiveEffectRunner).effect instanceof ReactiveEffect) {
     fn = (fn as ReactiveEffectRunner).effect.fn
   }
-
+  // 创建一个副作用
   const _effect = new ReactiveEffect(fn)
   if (options) {
     extend(_effect, options)
     if (options.scope) recordEffectScope(_effect, options.scope)
   }
+  // 如果不是延迟执行的，则立即执行一次副作用函数
   if (!options || !options.lazy) {
     _effect.run()
   }
+  // 通过bind函数返回一个新的副作用函数
   const runner = _effect.run.bind(_effect) as ReactiveEffectRunner
+  // 将副作用添加到新的副作用函数上
   runner.effect = _effect
+  // 返回这个新的副作用函数
   return runner
 }
 
@@ -206,7 +224,7 @@ export function effect<T = any>(
 export function stop(runner: ReactiveEffectRunner) {
   runner.effect.stop()
 }
-
+// 标识是否开启依赖收集
 export let shouldTrack = true
 const trackStack: boolean[] = []
 
@@ -245,24 +263,28 @@ export function resetTracking() {
  * @param key - Identifier of the reactive property to track.
  */
 export function track(target: object, type: TrackOpTypes, key: unknown) {
+  // 如果开启了依赖收集并且有正在执行的副作用，则收集依赖
   if (shouldTrack && activeEffect) {
+    // 在targetMap中获取到对应的target依赖集合
     let depsMap = targetMap.get(target)
     if (!depsMap) {
+      // 如果 target 不在 targetMap 中，则加入，并初始化 value 为 new Map()
       targetMap.set(target, (depsMap = new Map()))
     }
     let dep = depsMap.get(key)
     if (!dep) {
+      // 如果 key 不存在，将这个 key 作为依赖收集起来，并初始化 value 为 new Set()
       depsMap.set(key, (dep = createDep()))
     }
 
     const eventInfo = __DEV__
       ? { effect: activeEffect, target, type, key }
       : undefined
-
+    // 将副作用函数收集到依赖集合depsMap中
     trackEffects(dep, eventInfo)
   }
 }
-
+// 收集副作用函数
 export function trackEffects(
   dep: Dep,
   debuggerEventExtraInfo?: DebuggerEventExtraInfo
@@ -275,11 +297,14 @@ export function trackEffects(
     }
   } else {
     // Full cleanup mode.
+    // 已经track收集过依赖就可以跳过了
     shouldTrack = !dep.has(activeEffect!)
   }
 
   if (shouldTrack) {
+    // 两行关键代码：effect还收集它所依赖的响应式对象，每次effect运行都会清除旧的依赖关系，然后再重新建立新的依赖关系
     dep.add(activeEffect!)
+    // 用于trigger触发effect后，删除dep里面对应的effect，即dep.delete(activeEffect)
     activeEffect!.deps.push(dep)
     if (__DEV__ && activeEffect!.onTrack) {
       activeEffect!.onTrack(
@@ -315,14 +340,18 @@ export function trigger(
     // never been tracked
     return
   }
-
+  // 当前要处理的所有依赖
   let deps: (Dep | undefined)[] = []
   if (type === TriggerOpTypes.CLEAR) {
     // collection being cleared
     // trigger all effects for target
     deps = [...depsMap.values()]
   } else if (key === 'length' && isArray(target)) {
+    // 拦截修改数组长度的情况
     const newLength = Number(newValue)
+    // 放入key为length或者数组下标大于设置值的所以依赖
+    // 例如:const a = [1,2,3] a.length=1
+    // 那么数组长度发生了变化,2,3的依赖都应该被放入
     depsMap.forEach((dep, key) => {
       if (key === 'length' || (!isSymbol(key) && key >= newLength)) {
         deps.push(dep)
@@ -330,12 +359,14 @@ export function trigger(
     })
   } else {
     // schedule runs for SET | ADD | DELETE
+    // 其他的情况获取之前在getter收集的依赖到deps中
     if (key !== void 0) {
       deps.push(depsMap.get(key))
     }
 
     // also run for iteration key on ADD | DELETE | Map.SET
     switch (type) {
+      // 处理添加新的值
       case TriggerOpTypes.ADD:
         if (!isArray(target)) {
           deps.push(depsMap.get(ITERATE_KEY))
@@ -343,6 +374,10 @@ export function trigger(
             deps.push(depsMap.get(MAP_KEY_ITERATE_KEY))
           }
         } else if (isIntegerKey(key)) {
+          // 当前修改的是数组且是新增值
+          // 例如 arr.length = 3 arr[4] = 8
+          // 此时数组长度会发生改变所以当前数组的
+          // length属性依然需要被放入依赖
           // new index added to array -> length changes
           deps.push(depsMap.get('length'))
         }
@@ -376,6 +411,7 @@ export function trigger(
       }
     }
   } else {
+    // 扁平化所有的effect
     const effects: ReactiveEffect[] = []
     for (const dep of deps) {
       if (dep) {
@@ -385,6 +421,7 @@ export function trigger(
     if (__DEV__) {
       triggerEffects(createDep(effects), eventInfo)
     } else {
+      // 执行所有的副作用
       triggerEffects(createDep(effects))
     }
   }

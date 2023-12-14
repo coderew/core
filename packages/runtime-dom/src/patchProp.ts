@@ -52,6 +52,7 @@ export const patchProp: DOMRendererOptions['patchProp'] = (
       unmountChildren
     )
   } else {
+    // 判断当前属性的键是否为 true-value 或 false-value。如果是，则说明当前属性是用于设置复选框元素的选中值的。
     // special case for <input v-model type="checkbox"> with
     // :true-value & :false-value
     // store value as dom properties since non-string values will be

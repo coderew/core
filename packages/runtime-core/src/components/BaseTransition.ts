@@ -24,7 +24,10 @@ type Hook<T = () => void> = T | T[]
 
 const leaveCbKey = Symbol('_leaveCb')
 const enterCbKey = Symbol('_enterCb')
-
+/**
+ * 当DOM元素被挂载时，将过渡动画附加到该DOM元素上
+ * 当DOM元素被卸载时，不会立即卸载DOM元素，而是等到附加到该DOM元素上的过渡动画执行完成后再卸载它
+ */
 export interface BaseTransitionProps<HostElement = RendererElement> {
   mode?: 'in-out' | 'out-in' | 'default'
   appear?: boolean
@@ -147,12 +150,13 @@ const BaseTransitionImpl: ComponentOptions = {
     let prevTransitionKey: any
 
     return () => {
+      // 通过默认插槽获取需要过渡的元素
       const children =
         slots.default && getTransitionRawChildren(slots.default(), true)
       if (!children || !children.length) {
         return
       }
-
+      // 由于transition组件只能包含单个元素或组件，因此需要获取第一个非注释节点来进行过渡效果的处理
       let child: VNode = children[0]
       if (children.length > 1) {
         let hasFound = false

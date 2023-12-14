@@ -64,7 +64,9 @@ const resolveTarget = <T = RendererElement>(
 
 export const TeleportImpl = {
   name: 'Teleport',
+  // 独有标识位
   __isTeleport: true,
+  // 客户端渲染Telport
   process(
     n1: TeleportVNode | null,
     n2: TeleportVNode,
@@ -95,6 +97,7 @@ export const TeleportImpl = {
     }
 
     if (n1 == null) {
+      // 首次渲染Telport，往container中插入Telport的注释
       // insert anchors in the main view
       const placeholder = (n2.el = __DEV__
         ? createComment('teleport start')
@@ -106,6 +109,7 @@ export const TeleportImpl = {
       insert(mainAnchor, container, anchor)
       const target = (n2.target = resolveTarget(n2.props, querySelector))
       const targetAnchor = (n2.targetAnchor = createText(''))
+      // 获取容器，即挂载点
       if (target) {
         insert(targetAnchor, target)
         // #2652 we could be teleporting from a non-SVG tree into an SVG tree
@@ -118,6 +122,7 @@ export const TeleportImpl = {
         // Teleport *always* has Array children. This is enforced in both the
         // compiler and vnode children normalization.
         if (shapeFlag & ShapeFlags.ARRAY_CHILDREN) {
+          // 调用渲染器内部的mountChildren方法渲染Telport组件的插槽内容
           mountChildren(
             children as VNodeArrayChildren,
             container,
@@ -140,11 +145,16 @@ export const TeleportImpl = {
       // update content
       n2.el = n1.el
       const mainAnchor = (n2.anchor = n1.anchor)!
+      // 挂载点
       const target = (n2.target = n1.target)!
+      // 锚点
       const targetAnchor = (n2.targetAnchor = n1.targetAnchor)!
+      // 判断Telport组件是否禁用了
       const wasDisabled = isTeleportDisabled(n1.props)
+      // 如果禁用了，那么挂载点就是周围父组件，否则就是to指定的目标挂载点
       const currentContainer = wasDisabled ? container : target
       const currentAnchor = wasDisabled ? mainAnchor : targetAnchor
+      // 目标挂载点是否是SVG标签元素
       isSVG = isSVG || isTargetSVG(target)
 
       if (dynamicChildren) {
@@ -233,7 +243,7 @@ export const TeleportImpl = {
 
     updateCssVars(n2)
   },
-
+  // 移除Telport
   remove(
     vnode: VNode,
     parentComponent: ComponentInternalInstance | null,
@@ -264,8 +274,9 @@ export const TeleportImpl = {
       }
     }
   },
-
+  // 移动Telport
   move: moveTeleport,
+  // 服务端渲染Telport
   hydrate: hydrateTeleport
 }
 

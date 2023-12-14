@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document</title>
+  <script src="../../dist/vue.global.js"></script>
+
+</head>
+
+<body>
+<div id="app"></div>
+<script>
+  const { reactive, effect, computed } = Vue
+  // 创建响应式数据
+  const obj = reactive({
+    name: 'Vue2'
+  })
+  // 计算属性 触发 obj.name 的 get 行为
+  const computedObj = computed(() => {
+    return '版本：' + obj.name
+  })
+  // effect 函数中 触发 计算属性的 get 行为
+  effect(() => {
+    document.querySelector('#app').innerHTML = computedObj.value
+  })
+  // 修改响应式数据的 name 值 触发 set 行为
+  setTimeout(() => {
+    obj.name = 'Vue3'
+  }, 2000)
+</script>
+</body>
+
+</html>

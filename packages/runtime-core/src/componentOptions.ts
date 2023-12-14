@@ -606,7 +606,9 @@ function createDuplicateChecker() {
 }
 
 export let shouldCacheAccess = true
-
+/**
+ * 将Options API上定义的一些属性和数据添加到组件的instance相关属性上
+ */
 export function applyOptions(instance: ComponentInternalInstance) {
   const options = resolveMergedOptions(instance)
   const publicThis = instance.proxy! as any

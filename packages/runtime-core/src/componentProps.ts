@@ -195,10 +195,10 @@ export function initProps(
 ) {
   const props: Data = {}
   const attrs: Data = {}
+  // props的默认值缓存对象
   def(attrs, InternalObjectKey, 1)
-
   instance.propsDefaults = Object.create(null)
-
+  // 设置props值
   setFullProps(instance, rawProps, props, attrs)
 
   // ensure all declared prop keys are present
@@ -375,7 +375,9 @@ function setFullProps(
   props: Data,
   attrs: Data
 ) {
+  // 获取标准化props的配置
   const [options, needCastKeys] = instance.propsOptions
+  // 判断普通属性是否改变了标志位
   let hasAttrsChanged = false
   let rawCastValues: Data | undefined
   if (rawProps) {
@@ -505,6 +507,7 @@ export function normalizePropsOptions(
 ): NormalizedPropsOptions {
   const cache = appContext.propsCache
   const cached = cache.get(comp)
+  // 有缓存则直接返回
   if (cached) {
     return cached
   }
@@ -515,6 +518,7 @@ export function normalizePropsOptions(
 
   // apply mixin/extends props
   let hasExtends = false
+  // 处理extends和mixins这些props
   if (__FEATURE_OPTIONS_API__ && !isFunction(comp)) {
     const extendProps = (raw: ComponentOptions) => {
       if (__COMPAT__ && isFunction(raw)) {
@@ -542,14 +546,17 @@ export function normalizePropsOptions(
     }
     return EMPTY_ARR as any
   }
-
+  // 数组形式的props定义
   if (isArray(raw)) {
     for (let i = 0; i < raw.length; i++) {
       if (__DEV__ && !isString(raw[i])) {
         warn(`props must be strings when using array syntax.`, raw[i])
       }
+      // 转化为驼峰形式
       const normalizedKey = camelize(raw[i])
+      // props名称合法
       if (validatePropName(normalizedKey)) {
+        // 为标准化后的key对应 的每一个值创建一个空对象
         normalized[normalizedKey] = EMPTY_OBJ
       }
     }

@@ -493,13 +493,20 @@ export function createComponentInstance(
     (parent ? parent.appContext : vnode.appContext) || emptyAppContext
 
   const instance: ComponentInternalInstance = {
+    // 组件唯一id
     uid: uid++,
+    // 组件vnode
     vnode,
     type,
+    // 父组件实例
     parent,
+    // app上下文
     appContext,
+    // 根组件实例
     root: null!, // to be immediately set
+    // 新的组件vnode
     next: null,
+    // 子节点vnode
     subTree: null!, // will be set synchronously right after creation
     effect: null!,
     update: null!, // will be set synchronously right after creation
@@ -571,14 +578,18 @@ export function createComponentInstance(
     sp: null
   }
   if (__DEV__) {
+    // 初始化渲染上下文
     instance.ctx = createDevRenderContext(instance)
   } else {
     instance.ctx = { _: instance }
   }
+  // 初始化根组件指针
   instance.root = parent ? parent.root : instance
+  // 初始化派发事件方法
   instance.emit = emit.bind(null, instance)
 
   // apply custom element special handling
+  // 执行自定义元素特殊的处理器
   if (vnode.ce) {
     vnode.ce(instance)
   }
@@ -664,32 +675,40 @@ export function setupComponent(
 
   const { props, children } = instance.vnode
   const isStateful = isStatefulComponent(instance)
+  // 初始化props
   initProps(instance, props, isStateful, isSSR)
+  // 初始化插槽
   initSlots(instance, children)
-
+  // 设置有状态的组件实例（通常，我们写的组件就是一个有状态的组件，所谓有状态，就是组件会在渲染过程中把一些状态挂载到组件实例对应的属性上）
   const setupResult = isStateful
     ? setupStatefulComponent(instance, isSSR)
     : undefined
   isInSSRComponentSetup = false
   return setupResult
 }
-
+/**
+ * 0、创建渲染上下文代理
+ * 1、判断处理setup函数
+ * 2、完成组件实例设置
+ */
 function setupStatefulComponent(
   instance: ComponentInternalInstance,
   isSSR: boolean
 ) {
   const Component = instance.type as ComponentOptions
-
+  // 校验组件名称是否合法(不能是slot component)
   if (__DEV__) {
     if (Component.name) {
       validateComponentName(Component.name, instance.appContext.config)
     }
+    // 校验接受的组件是否合法(对每一个component检测)
     if (Component.components) {
       const names = Object.keys(Component.components)
       for (let i = 0; i < names.length; i++) {
         validateComponentName(names[i], instance.appContext.config)
       }
     }
+    // 校验自定义指令是否合法
     if (Component.directives) {
       const names = Object.keys(Component.directives)
       for (let i = 0; i < names.length; i++) {
@@ -705,21 +724,26 @@ function setupStatefulComponent(
     }
   }
   // 0. create render proxy property access cache
+  // 创建渲染代理的属性访问缓存
   instance.accessCache = Object.create(null)
   // 1. create public instance / render proxy
   // also mark it raw so it's never observed
+  // 创建渲染上下文代理
   instance.proxy = markRaw(new Proxy(instance.ctx, PublicInstanceProxyHandlers))
   if (__DEV__) {
     exposePropsOnRenderContext(instance)
   }
   // 2. call setup()
+  // 判断处理setup函数
   const { setup } = Component
   if (setup) {
+    // 如果setup函数带参数，则创建一个setupContext
     const setupContext = (instance.setupContext =
       setup.length > 1 ? createSetupContext(instance) : null)
 
     setCurrentInstance(instance)
     pauseTracking()
+    // 执行setup函数，获取返回值
     const setupResult = callWithErrorHandling(
       setup,
       instance,
@@ -763,6 +787,7 @@ function setupStatefulComponent(
       handleSetupResult(instance, setupResult, isSSR)
     }
   } else {
+    // 完成组件实例设置
     finishComponentSetup(instance, isSSR)
   }
 }
@@ -830,7 +855,11 @@ export function registerRuntimeCompiler(_compile: any) {
 
 // dev only
 export const isRuntimeOnly = () => !compile
-
+/**
+ * 做了两件事情：
+ * 1、标准化模版或者渲染函数
+ * 2、兼容Options API
+ */
 export function finishComponentSetup(
   instance: ComponentInternalInstance,
   isSSR: boolean,
@@ -848,6 +877,7 @@ export function finishComponentSetup(
 
   // template / render function normalization
   // could be already set when returned from setup()
+  // 如果组件没有render，给它生成一个（模版或者渲染函数的标准化）
   if (!instance.render) {
     // only do on-the-fly compile if not in SSR - SSR on-the-fly compilation
     // is done by server-renderer
@@ -889,7 +919,7 @@ export function finishComponentSetup(
         }
       }
     }
-
+    // 把组件对象的render函数赋值给instance.render
     instance.render = (Component.render || NOOP) as InternalRenderFunction
 
     // for runtime-compiled render functions using `with` blocks, the render
@@ -901,6 +931,7 @@ export function finishComponentSetup(
   }
 
   // support for 2.x options
+  // 兼容Vue.js2.x Options API
   if (__FEATURE_OPTIONS_API__ && !(__COMPAT__ && skipOptions)) {
     setCurrentInstance(instance)
     pauseTracking()
@@ -916,6 +947,7 @@ export function finishComponentSetup(
   // the runtime compilation of template in SSR is done by server-render
   if (__DEV__ && !Component.render && instance.render === NOOP && !isSSR) {
     /* istanbul ignore if */
+    // 只编写了template但使用了Runtime-only的版本
     if (!compile && Component.template) {
       warn(
         `Component provided template option but ` +
@@ -929,6 +961,7 @@ export function finishComponentSetup(
                 : ``) /* should not happen */
       )
     } else {
+      // 既没有写render函数也没有写template模版
       warn(`Component is missing template or render function.`)
     }
   }

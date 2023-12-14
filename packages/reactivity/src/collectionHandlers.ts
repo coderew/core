@@ -33,10 +33,13 @@ function get(
     track(rawTarget, TrackOpTypes.GET, rawKey)
   }
   const { has } = getProto(rawTarget)
+  // wrap 函数用来把可代理的值转换为响应式数据
   const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
   if (has.call(rawTarget, key)) {
+    // 返回包装后的数据
     return wrap(target.get(key))
   } else if (has.call(rawTarget, rawKey)) {
+    // 返回包装后的数据
     return wrap(target.get(rawKey))
   } else if (target !== rawTarget) {
     // #3602 readonly(reactive(Map))
@@ -59,20 +62,28 @@ function has(this: CollectionTypes, key: unknown, isReadonly = false): boolean {
     ? target.has(key)
     : target.has(key) || target.has(rawKey)
 }
-
+// 拦截size属性
 function size(target: IterableCollections, isReadonly = false) {
   target = (target as any)[ReactiveFlags.RAW]
+  // 只有非只读时才收集依赖，响应联系建立在ITERATE_KEY和副作用函数之间
   !isReadonly && track(toRaw(target), TrackOpTypes.ITERATE, ITERATE_KEY)
+  // 指定第三个参数receiver为原始对象target，从而修复拦截size属性时访问器属性的getter函数执行时的this指向问题
   return Reflect.get(target, 'size', target)
 }
 
 function add(this: SetTypes, value: unknown) {
   value = toRaw(value)
+  // add 拦截函数里的 this 仍然指向的是代理对象，通过 raw 属性获取原始数据对象
   const target = toRaw(this)
   const proto = getProto(target)
+  // 先判断值是否已经存在
   const hadKey = proto.has.call(target, value)
+  // 只有在值不存在的情况下，才需要触发响应
   if (!hadKey) {
+    // 通过原始数据对象执行 add 方法添加具体的值
+    // 注意，这里不再需要 .bind 了，因为是直接通过原始数据对象 target 调用并执行
     target.add(value)
+    // 调用 trigger 函数触发响应，并指定从操作类型为 ADD
     trigger(target, TriggerOpTypes.ADD, value, value)
   }
   return this
@@ -93,17 +104,21 @@ function set(this: MapTypes, key: unknown, value: unknown) {
 
   const oldValue = get.call(target, key)
   target.set(key, value)
+  // 如果不存在，则说明是ADD 类型的操作，意味着新增
   if (!hadKey) {
     trigger(target, TriggerOpTypes.ADD, key, value)
   } else if (hasChanged(value, oldValue)) {
+    // 如果存在，并且值变了，则是 SET 类型的操作，意味着修改
     trigger(target, TriggerOpTypes.SET, key, value, oldValue)
   }
   return this
 }
-
+// delete 操作的拦截
 function deleteEntry(this: CollectionTypes, key: unknown) {
+  // delete 拦截函数里的 this 仍然指向的是代理对象，通过 raw 属性获取原始数据对象
   const target = toRaw(this)
   const { has, get } = getProto(target)
+  // 先判断值是否已经存在
   let hadKey = has.call(target, key)
   if (!hadKey) {
     key = toRaw(key)
@@ -113,15 +128,19 @@ function deleteEntry(this: CollectionTypes, key: unknown) {
   }
 
   const oldValue = get ? get.call(target, key) : undefined
-  // forward the operation before queueing reactions
+  // 通过原始数据对象执行 delete 方法删除具体的值
+  // 注意，这里不再需要 .bind 了，因为是直接通过原始数据对象 target 调用并执行的
   const result = target.delete(key)
+  // 当要删除的元素确实存在时，才触发响应
   if (hadKey) {
+    // 调用 trigger 函数触发响应，并指定操作类型为 DELETE
     trigger(target, TriggerOpTypes.DELETE, key, undefined, oldValue)
   }
   return result
 }
-
+// clear  操作的拦截
 function clear(this: IterableCollections) {
+  // clear 拦截函数里的 this 仍然指向的是代理对象，通过 raw 属性获取原始数据对象
   const target = toRaw(this)
   const hadItems = target.size !== 0
   const oldTarget = __DEV__
@@ -130,13 +149,16 @@ function clear(this: IterableCollections) {
       : new Set(target)
     : undefined
   // forward the operation before queueing reactions
+  // 通过原始数据对象执行 clear 方法清除所有成员
   const result = target.clear()
+  // 还存在元素时才触发响应
   if (hadItems) {
+    // 调用 trigger 函数触发响应，并指定操作类型为 CLEAR
     trigger(target, TriggerOpTypes.CLEAR, undefined, undefined, oldTarget)
   }
   return result
 }
-
+// forEach 遍历的拦截
 function createForEach(isReadonly: boolean, isShallow: boolean) {
   return function forEach(
     this: IterableCollections,
@@ -144,14 +166,18 @@ function createForEach(isReadonly: boolean, isShallow: boolean) {
     thisArg?: unknown
   ) {
     const observed = this as any
+    // 获取原始数据对象
     const target = observed[ReactiveFlags.RAW]
     const rawTarget = toRaw(target)
+    // wrap 函数用来把可代理的值转换为响应式数据
     const wrap = isShallow ? toShallow : isReadonly ? toReadonly : toReactive
     !isReadonly && track(rawTarget, TrackOpTypes.ITERATE, ITERATE_KEY)
+    // 通过原始数据对象target调用 forEach 方法进行遍历
     return target.forEach((value: unknown, key: unknown) => {
       // important: make sure the callback is
       // 1. invoked with the reactive map as `this` and 3rd arg
       // 2. the value received should be a corresponding reactive/readonly.
+      // 手动调用 callback，用 wrap 函数包裹 value 和 key 后再传给 callback，这样就实现了深响应
       return callback.call(thisArg, wrap(value), wrap(key), observed)
     })
   }

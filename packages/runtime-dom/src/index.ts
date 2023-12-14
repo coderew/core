@@ -37,8 +37,9 @@ const rendererOptions = /*#__PURE__*/ extend({ patchProp }, nodeOps)
 let renderer: Renderer<Element | ShadowRoot> | HydrationRenderer
 
 let enabledHydration = false
-
+// 延时创建渲染器,当用户只依赖响应式包的时候,可以通过 tree-shaking 移除核心渲染逻辑相关的代码
 function ensureRenderer() {
+  // 最终返回了一个对象 {render,createApp}
   return (
     renderer ||
     (renderer = createRenderer<Node, Element | ShadowRoot>(rendererOptions))
@@ -61,8 +62,13 @@ export const render = ((...args) => {
 export const hydrate = ((...args) => {
   ensureHydrationRenderer().hydrate(...args)
 }) as RootHydrateFunction
-
+/**
+ * 1、调用ensureRenderer函数获取渲染器，然后执行渲染器的createApp方法创建app应用实例
+ * 2、获取app应用实例的mount方法，对mount方法进行扩展
+ */
 export const createApp = ((...args) => {
+  // 创建app对象
+  // createApp() -> ensureRenderer() -> createRenderer()[传入renderOptions,包含了浏览器操作dom的方法] => renderer -> renderer.createApp()
   const app = ensureRenderer().createApp(...args)
 
   if (__DEV__) {
@@ -71,16 +77,21 @@ export const createApp = ((...args) => {
   }
 
   const { mount } = app
+  // 重写mount方法
+  // 为什么要重写? 内部是一个标准的可跨平台的组件渲染流程，这里仅是为Web平台服务的
   app.mount = (containerOrSelector: Element | ShadowRoot | string): any => {
+    // 获取<div id="root"></div>的DOM对象(这个函数处理了字符串和真实DOM两种情况)
     const container = normalizeContainer(containerOrSelector)
     if (!container) return
-
+    // app是一个包含component\config\directive\mixin\mount\provide等属性的实例对象，该实例对象提供了一个应用上下文，实例对象上的方法可以链式调用
     const component = app._component
+    // 如果组件对象没有定义 render 函数和 template 模板（首次初始化的时候），则取容器的 innerHTML 作为组件模板内容
     if (!isFunction(component) && !component.render && !component.template) {
       // __UNSAFE__
       // Reason: potential execution of JS expressions in in-DOM template.
       // The user must make sure the in-DOM template is trusted. If it's
       // rendered by the server, the template should not contain any user data.
+      // 将根节点下的HTML内容添加到组件的template上
       component.template = container.innerHTML
       // 2.x compat check
       if (__COMPAT__ && __DEV__) {
@@ -99,11 +110,13 @@ export const createApp = ((...args) => {
 
     // clear content before mounting
     container.innerHTML = ''
+    // 真正的挂载(挂载容器,是否是ssr,是否是svg元素)
     const proxy = mount(container, false, container instanceof SVGElement)
     if (container instanceof Element) {
       container.removeAttribute('v-cloak')
       container.setAttribute('data-v-app', '')
     }
+    // 返回渲染器的所有方法的集合
     return proxy
   }
 

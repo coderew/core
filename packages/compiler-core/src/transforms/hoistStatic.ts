@@ -51,16 +51,21 @@ export function isSingleElementRoot(
 
 function walk(
   node: ParentNode,
+  // 转换上下文对象
   context: TransformContext,
+  // 节点是否可以提升
   doNotHoistNode: boolean = false
 ) {
   const { children } = node
+  // 子节点的数量
   const originalCount = children.length
+  // 可提示节点的数量
   let hoistedCount = 0
 
   for (let i = 0; i < children.length; i++) {
     const child = children[i]
     // only plain elements & text calls are eligible for hoisting.
+    // 只有普通元素和文本才能被提升
     if (
       child.type === NodeTypes.ELEMENT &&
       child.tagType === ElementTypes.ELEMENT

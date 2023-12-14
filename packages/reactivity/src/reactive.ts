@@ -14,10 +14,15 @@ import {
 import type { UnwrapRefSimple, Ref, RawSymbol } from './ref'
 
 export const enum ReactiveFlags {
+  // 标记一个不能转化为响应式数据的对象
   SKIP = '__v_skip',
+  // 标记一个响应式对象
   IS_REACTIVE = '__v_isReactive',
+  // 标记一个只读对象
   IS_READONLY = '__v_isReadonly',
+  // 标记只有一层先攻的浅可读写对象
   IS_SHALLOW = '__v_isShallow',
+  // 标记获取原始值
   RAW = '__v_raw'
 }
 
@@ -36,7 +41,9 @@ export const shallowReadonlyMap = new WeakMap<Target, any>()
 
 const enum TargetType {
   INVALID = 0,
+  // Array、Object类型使用baseHandlers处理
   COMMON = 1,
+  // Map、Set、WeapMap、WeakSet使用collectionHandlers处理
   COLLECTION = 2
 }
 
@@ -252,6 +259,7 @@ function createReactiveObject(
   collectionHandlers: ProxyHandler<any>,
   proxyMap: WeakMap<Target, any>
 ) {
+  // 不能够代理非对象
   if (!isObject(target)) {
     if (__DEV__) {
       console.warn(`value cannot be made reactive: ${String(target)}`)
@@ -260,6 +268,7 @@ function createReactiveObject(
   }
   // target is already a Proxy, return it.
   // exception: calling readonly() on a reactive object
+  // 已经代理过的对象不需要进行二次代理
   if (
     target[ReactiveFlags.RAW] &&
     !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
@@ -267,6 +276,7 @@ function createReactiveObject(
     return target
   }
   // target already has corresponding Proxy
+  // 防止重复代理：如果target已经有对应的Proxy,返回对应的Proxy
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
     return existingProxy
@@ -277,10 +287,14 @@ function createReactiveObject(
     return target
   }
   const proxy = new Proxy(
+    // 判断当前代理对象的类型,如果是Array、Object采用baseHandlers
+    // 如果是Map、Set、WeakMap、WeakSet采用collectionHandlers
     target,
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
   )
+  // 缓存已经代理的对象
   proxyMap.set(target, proxy)
+  // 返回代理成功的对象
   return proxy
 }
 

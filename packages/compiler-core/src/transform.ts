@@ -316,17 +316,22 @@ export function createTransformContext(
 
   return context
 }
-
+// 将模版AST转换为JS AST
 export function transform(root: RootNode, options: TransformOptions) {
+  // 创建转换上下文对象：存储转换过程中的一些上下文，例如当前正在转换的节点currentNode、当前转换节点的父节点parent、用于替换当前正在转换的节点的 replaceNode 函数、用于移除当前访问的节点的 removeNode 函数等
   const context = createTransformContext(root, options)
+  // 遍历所有节点，执行转换，将模版AST转换为JS AST
   traverseNode(root, context)
+  // 如果编译选项中打开了hoistStatic选项，则进行静态提示
   if (options.hoistStatic) {
     hoistStatic(root, context)
   }
+  // 创建Block，收集所有动态子节点
   if (!options.ssr) {
     createRootCodegen(root, context)
   }
   // finalize meta information
+  // 确定最终的元信息
   root.helpers = new Set([...context.helpers.keys()])
   root.components = [...context.components]
   root.directives = [...context.directives]

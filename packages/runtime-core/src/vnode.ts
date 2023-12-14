@@ -415,8 +415,9 @@ const normalizeRef = ({
       : null
   ) as any
 }
-
+// 针对普通元素节点创建vnode
 function createBaseVNode(
+  // 创建的虚拟节点的类型
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
   props: (Data & VNodeProps) | null = null,
   children: unknown = null,
@@ -427,15 +428,25 @@ function createBaseVNode(
   needFullChildrenNormalization = false
 ) {
   const vnode = {
+    // 这是一个vnode
     __v_isVNode: true,
+    // 不进行响应式处理
     __v_skip: true,
+    // .vue文件编译后的对象
     type,
+    // 组件收到的props
     props,
+    // 组件key
     key: props && normalizeKey(props),
+    // 收集到的ref
     ref: props && normalizeRef(props),
+    // 当前作用域ID
     scopeId: currentScopeId,
+    // 插槽ID
     slotScopeIds: null,
+    // 子节点
     children,
+    // 组件实例
     component: null,
     suspense: null,
     ssContent: null,
@@ -447,16 +458,20 @@ function createBaseVNode(
     target: null,
     targetAnchor: null,
     staticCount: 0,
+    // 当前虚拟节点的类型
     shapeFlag,
+    // patch类型
     patchFlag,
+    // 动态props
     dynamicProps,
     dynamicChildren: null,
     appContext: null,
     ctx: currentRenderingInstance
   } as VNode
-
+  // 是否需要对children进行标准化
   if (needFullChildrenNormalization) {
     normalizeChildren(vnode, children)
+    // 处理SUSPENSE逻辑
     // normalize suspense children
     if (__FEATURE_SUSPENSE__ && shapeFlag & ShapeFlags.SUSPENSE) {
       ;(type as typeof SuspenseImpl).normalize(vnode)
@@ -464,17 +479,20 @@ function createBaseVNode(
   } else if (children) {
     // compiled element vnode - if children is passed, only possible types are
     // string or Array.
+    // 设置shapeFlags
     vnode.shapeFlag |= isString(children)
       ? ShapeFlags.TEXT_CHILDREN
       : ShapeFlags.ARRAY_CHILDREN
   }
 
   // validate key
+  // 警告key不能为NaN
   if (__DEV__ && vnode.key !== vnode.key) {
     warn(`VNode created with invalid key (NaN). VNode type:`, vnode.type)
   }
 
   // track vnode for block tree
+  // 判断是否加入dynamicChildren
   if (
     isBlockTreeEnabled > 0 &&
     // avoid a block node from tracking itself
@@ -508,11 +526,17 @@ export const createVNode = (
 ) as typeof _createVNode
 
 function _createVNode(
+  // 编译后的.vue文件形成的对象
   type: VNodeTypes | ClassComponent | typeof NULL_DYNAMIC_COMPONENT,
+  // 给组件传递的props
   props: (Data & VNodeProps) | null = null,
+  // 子组件
   children: unknown = null,
+  // patch的类型
   patchFlag: number = 0,
+  // 动态的props
   dynamicProps: string[] | null = null,
+  // 是否是block节点
   isBlockNode = false
 ): VNode {
   if (!type || type === NULL_DYNAMIC_COMPONENT) {
@@ -542,6 +566,7 @@ function _createVNode(
   }
 
   // class component normalization.
+  // 通过__vccOpts判断是否是class组件
   if (isClassComponent(type)) {
     type = type.__vccOpts
   }
@@ -552,6 +577,7 @@ function _createVNode(
   }
 
   // class & style normalization.
+  // class & style 标准化
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
     props = guardReactiveProps(props)!
@@ -570,6 +596,7 @@ function _createVNode(
   }
 
   // encode the vnode type information into a bitmap
+  // 对vnode的类型信息做了编码
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT
     : __FEATURE_SUSPENSE__ && isSuspense(type)
@@ -593,7 +620,7 @@ function _createVNode(
       type
     )
   }
-
+  // 调用更基层的方法处理
   return createBaseVNode(
     type,
     props,
@@ -602,8 +629,28 @@ function _createVNode(
     dynamicProps,
     shapeFlag,
     isBlockNode,
+    // needFullChildrenNormalization是true，还会执行normlizeChildren去标准化子节点
     true
   )
+  // 处理流程：vnode是在render函数执行的时候创建的
+  // 1.对传递的type进行判断，通过复制shapeFlag来标明当前的虚拟节点
+  // 2.如果props含有style或者class要进行标准化
+  // 3.调用更基层的方法处理
+
+  // <template>
+  //   <div :class="{hello:true}"
+  //       :style="[{color:'red'},'background:red']">
+  //   </div>
+  // </template>
+
+  // //编译后
+  // const _hoisted_1 = {
+  //   class:_normalizeClass({hello:true}),
+  //   style:_normalizeStyle([{color:'red'},'background:red'])
+  // }
+  // function render(_ctx, _cache) {
+  //   return (_openBlock(), _createElementBlock("div", _hoisted_1))
+  // }
 }
 
 export function guardReactiveProps(props: (Data & VNodeProps) | null) {

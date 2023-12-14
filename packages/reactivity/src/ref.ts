@@ -38,6 +38,13 @@ type RefBase<T> = {
 }
 
 export function trackRefValue(ref: RefBase<any>) {
+  /**
+   * shouldTrack 是一个全局变量，代表当前是否需要track收集依赖
+   * activeEffect 也是一个全局变量，代表当前副作用对象ReactiveEffect
+   * 为什么要判断是否收集依赖？
+   * 1、没有被effect包裹时，由于没有副作用函数（即没有依赖，activeEffect === undefined），不应该收集依赖
+   * 2、某些特殊情况，即使包裹在effect，也不应该收集依赖（即shouldEffect === false）
+   */
   if (shouldTrack && activeEffect) {
     ref = toRaw(ref)
     if (__DEV__) {
@@ -47,6 +54,7 @@ export function trackRefValue(ref: RefBase<any>) {
         key: 'value'
       })
     } else {
+      // 如果没有dep属性，则初始化dep,dep是一个Set<ReactiveEffect>，存储副作用函数
       trackEffects(ref.dep || (ref.dep = createDep()))
     }
   }
@@ -89,6 +97,7 @@ export function isRef(r: any): r is Ref {
  */
 export function ref<T>(value: T): Ref<UnwrapRef<T>>
 export function ref<T = any>(): Ref<T | undefined>
+// Ref入口：将原始类型包装成对象，同时也可以包装对象进行深层代理
 export function ref(value?: unknown) {
   return createRef(value, false)
 }
@@ -118,33 +127,41 @@ export function shallowRef<T>(value: MaybeRef<T>): Ref<T> | ShallowRef<T>
 export function shallowRef<T extends Ref>(value: T): T
 export function shallowRef<T>(value: T): ShallowRef<T>
 export function shallowRef<T = any>(): ShallowRef<T | undefined>
+// 创建ref不会深层代理
 export function shallowRef(value?: unknown) {
   return createRef(value, true)
 }
 
 function createRef(rawValue: unknown, shallow: boolean) {
+  // 如果已经是ref，就直接返回值
   if (isRef(rawValue)) {
     return rawValue
   }
   return new RefImpl(rawValue, shallow)
 }
-
+// getter 获取value属性时，trace收集依赖
+// setter 设置value属性时，trigger触发依赖
+// 因此只有访问/修改ref的value属性，才会收集/触发依赖
 class RefImpl<T> {
   private _value: T
   private _rawValue: T
-
+  // 依赖收集
   public dep?: Dep = undefined
+  // ref标识
   public readonly __v_isRef = true
 
   constructor(
     value: T,
     public readonly __v_isShallow: boolean
   ) {
+    // 保存原始值到_rawValue
     this._rawValue = __v_isShallow ? value : toRaw(value)
+    // 如果是对象，使用reactive将对象转为响应式的，因此将一个对象传入ref，实际上也是调用了reactive
     this._value = __v_isShallow ? value : toReactive(value)
   }
 
   get value() {
+    // 取值的时候收集依赖
     trackRefValue(this)
     return this._value
   }
@@ -154,8 +171,11 @@ class RefImpl<T> {
       this.__v_isShallow || isShallow(newVal) || isReadonly(newVal)
     newVal = useDirectValue ? newVal : toRaw(newVal)
     if (hasChanged(newVal, this._rawValue)) {
+      // 更新值
       this._rawValue = newVal
+      // 判断是否是对象，进行赋值
       this._value = useDirectValue ? newVal : toReactive(newVal)
+      // 派发通知
       triggerRefValue(this, newVal)
     }
   }
@@ -430,11 +450,13 @@ export function toRef(
   key?: string,
   defaultValue?: unknown
 ): Ref {
+  // 如果原对象是source，则直接返回原对象
   if (isRef(source)) {
     return source
   } else if (isFunction(source)) {
     return new GetterRefImpl(source) as any
   } else if (isObject(source) && arguments.length > 1) {
+    // 如果原对象是对象，则将原对象的key对应的值处理成ref返回
     return propertyToRef(source, key!, defaultValue)
   } else {
     return ref(source)
