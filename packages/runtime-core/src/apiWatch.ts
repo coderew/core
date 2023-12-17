@@ -274,6 +274,7 @@ function doWatch(
   }
 
   let cleanup: (() => void) | undefined
+  // 注册无效回调函数
   let onCleanup: OnCleanup = (fn: () => void) => {
     cleanup = effect.onStop = () => {
       callWithErrorHandling(fn, instance, ErrorCodes.WATCH_CLEANUP)
@@ -303,7 +304,7 @@ function doWatch(
       return NOOP
     }
   }
-
+  // 旧值初始值
   let oldValue: any = isMultiSource
     ? new Array((source as []).length).fill(INITIAL_WATCHER_VALUE)
     : INITIAL_WATCHER_VALUE
@@ -312,8 +313,12 @@ function doWatch(
       return
     }
     if (cb) {
+      // 处理watch的场景
       // watch(source, cb)
+      // 执行副作用函数获取新值
       const newValue = effect.run()
+      // 如果数据源是响应式数据或者需要强制触发副作用函数执行或者新旧值发生了变化
+      // 则执行回调函数，并更新旧值
       if (
         deep ||
         forceTrigger ||
@@ -325,9 +330,11 @@ function doWatch(
           isCompatEnabled(DeprecationTypes.WATCH_ARRAY, instance))
       ) {
         // cleanup before running cb again
+        // 当回调再次执行前先清除副作用
         if (cleanup) {
           cleanup()
         }
+        // 执行回调函数 cb，将旧值和新值作为回调函数的参数
         callWithAsyncErrorHandling(cb, instance, ErrorCodes.WATCH_CALLBACK, [
           newValue,
           // pass undefined as the old value when it's changed for the first time
@@ -338,6 +345,7 @@ function doWatch(
               : oldValue,
           onCleanup
         ])
+        // 更新旧值
         oldValue = newValue
       }
     } else {
@@ -348,12 +356,15 @@ function doWatch(
 
   // important: mark the job as a watcher callback so that scheduler knows
   // it is allowed to self-trigger (#1727)
+  // 允许触发自身
   job.allowRecurse = !!cb
 
   let scheduler: EffectScheduler
   if (flush === 'sync') {
+    // 同步执行，将job赋值给调度器
     scheduler = job as any // the scheduler function gets called directly
   } else if (flush === 'post') {
+    // 将调度函数job添加到微任务队列中执行
     scheduler = () => queuePostRenderEffect(job, instance && instance.suspense)
   } else {
     // default: 'pre'
@@ -370,10 +381,14 @@ function doWatch(
   }
 
   // initial run
+  // 初次执行
   if (cb) {
+    // 选项参数 immediate 来指定回调是否需要立即执行
     if (immediate) {
+      // 回调函数会在 watch 创建时立即执行一次
       job()
     } else {
+      // 手动调用副作用函数，拿到的就是旧值
       oldValue = effect.run()
     }
   } else if (flush === 'post') {
@@ -382,12 +397,14 @@ function doWatch(
       instance && instance.suspense
     )
   } else {
+    // 没有cb并且flush不为post的情况
     effect.run()
   }
 
   const unwatch = () => {
     effect.stop()
     if (instance && instance.scope) {
+      // 移除组件effects对这个effect的引用
       remove(instance.scope.effects!, effect)
     }
   }
