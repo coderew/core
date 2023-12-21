@@ -97,7 +97,7 @@ export const TeleportImpl = {
     }
 
     if (n1 == null) {
-      // 首次渲染Telport，往container中插入Telport的注释
+      // 首次渲染Telport，往container中插入Telport的注释节点
       // insert anchors in the main view
       const placeholder = (n2.el = __DEV__
         ? createComment('teleport start')
@@ -105,11 +105,12 @@ export const TeleportImpl = {
       const mainAnchor = (n2.anchor = __DEV__
         ? createComment('teleport end')
         : createText(''))
+      // 插入注释节点
       insert(placeholder, container, anchor)
       insert(mainAnchor, container, anchor)
       const target = (n2.target = resolveTarget(n2.props, querySelector))
       const targetAnchor = (n2.targetAnchor = createText(''))
-      // 获取容器，即挂载点
+      // 判断target的DOM节点是否存在，存在则插入一个空的文本节点，也称为占位节点
       if (target) {
         insert(targetAnchor, target)
         // #2652 we could be teleporting from a non-SVG tree into an SVG tree

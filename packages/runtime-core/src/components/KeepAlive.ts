@@ -79,6 +79,7 @@ const KeepAliveImpl: ComponentOptions = {
   // Marker for special handling inside the renderer. We are not using a ===
   // check directly on KeepAlive in the renderer, because importing it directly
   // would prevent it from being tree-shaken.
+  // KeepAlive独有标识
   __isKeepAlive: true,
 
   props: {
@@ -279,6 +280,7 @@ const KeepAliveImpl: ComponentOptions = {
           !(rawVNode.shapeFlag & ShapeFlags.SUSPENSE))
       ) {
         current = null
+        // 如果不是组件，直接渲染即可，因为非组件的虚拟节点无法被KeepAlive
         return rawVNode
       }
 
@@ -328,7 +330,7 @@ const KeepAliveImpl: ComponentOptions = {
       if (cachedVNode) {
         // copy over mounted state
         vnode.el = cachedVNode.el
-        // 无须创建组件实例，继承缓存的组件即可
+        // 如果有缓存内容，则说明不应该执行挂载，而应该执行激活集成组件实例
         vnode.component = cachedVNode.component
         if (vnode.transition) {
           // recursively update transition hooks on subTree
