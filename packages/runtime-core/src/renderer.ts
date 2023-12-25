@@ -2328,10 +2328,11 @@ function baseCreateRenderer(
       removeStaticNode(vnode)
       return
     }
-
+    // 将卸载动作封装到performLeave函数中
     const performRemove = () => {
       hostRemove(el!)
       if (transition && !transition.persisted && transition.afterLeave) {
+        // 离开时动画
         transition.afterLeave()
       }
     }
@@ -2341,14 +2342,19 @@ function baseCreateRenderer(
       transition &&
       !transition.persisted
     ) {
+      // 如果需要过渡处理，则调用 transition.leave 钩子，
+      // 同时将 DOM 元素和 performRemove 函数作为参数传递
       const { leave, delayLeave } = transition
       const performLeave = () => leave(el!, performRemove)
       if (delayLeave) {
+        // 需要延迟执行 leave
         delayLeave(vnode.el!, performRemove, performLeave)
       } else {
+        // 直接执行 leave
         performLeave()
       }
     } else {
+      // 如果不需要过渡处理，则直接执行卸载操作
       performRemove()
     }
   }

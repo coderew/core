@@ -203,13 +203,14 @@ const BaseTransitionImpl: ComponentOptions = {
       if (!innerChild) {
         return emptyPlaceholder(child)
       }
-
+      // 初始化transition函数
       const enterHooks = resolveTransitionHooks(
         innerChild,
         rawProps,
         state,
         instance
       )
+      // 给过渡元素添加transition钩子函数
       setTransitionHooks(innerChild, enterHooks)
 
       const oldChild = instance.subTree
@@ -233,6 +234,7 @@ const BaseTransitionImpl: ComponentOptions = {
         oldInnerChild.type !== Comment &&
         (!isSameVNodeType(innerChild, oldInnerChild) || transitionKeyChanged)
       ) {
+        // 离开时的动画
         const leavingHooks = resolveTransitionHooks(
           oldInnerChild,
           rawProps,
@@ -363,6 +365,7 @@ export function resolveTransitionHooks(
   const hooks: TransitionHooks<TransitionElement> = {
     mode,
     persisted,
+    // 进入前的过渡动画
     beforeEnter(el) {
       let hook = onBeforeEnter
       if (!state.isMounted) {
@@ -384,11 +387,12 @@ export function resolveTransitionHooks(
         (leavingVNode.el as TransitionElement)[leaveCbKey]
       ) {
         // force early removal (not cancelled)
+        // 处理旧的 vnode 在新的 vnode 中不存在的情况，调用 _leaveCb 函数，强制删除旧的 vnode
         ;(leavingVNode.el as TransitionElement)[leaveCbKey]!()
       }
       callHook(hook, [el])
     },
-
+    // 进入的过渡动画
     enter(el) {
       let hook = onEnter
       let afterHook = onAfterEnter
@@ -422,7 +426,7 @@ export function resolveTransitionHooks(
         done()
       }
     },
-
+    // 离开的过渡动画
     leave(el, remove) {
       const key = String(vnode.key)
       if (el[enterCbKey]) {
@@ -486,14 +490,19 @@ function getKeepAliveChild(vnode: VNode): VNode | undefined {
         : undefined
     : vnode
 }
-
+// 给需要过渡的元素的虚拟节点添加 transition 钩子函数
 export function setTransitionHooks(vnode: VNode, hooks: TransitionHooks) {
   if (vnode.shapeFlag & ShapeFlags.COMPONENT && vnode.component) {
+    // vnode 是组件，则递归调用 setTransitionHooks
+    // 在过渡元素 VNode 对象上添加transition 相应的钩子函数
     setTransitionHooks(vnode.component.subTree, hooks)
   } else if (__FEATURE_SUSPENSE__ && vnode.shapeFlag & ShapeFlags.SUSPENSE) {
+    // vnode 是 Suspense 组件组件，调用 hooks 对象的 clone 方法
+    // 设置 transition 相应的钩子函数
     vnode.ssContent!.transition = hooks.clone(vnode.ssContent!)
     vnode.ssFallback!.transition = hooks.clone(vnode.ssFallback!)
   } else {
+    // 在过渡元素 VNode 对象上添加transition 相应的钩子函数
     vnode.transition = hooks
   }
 }
